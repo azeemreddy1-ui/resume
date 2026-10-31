@@ -1,0 +1,116 @@
+(function () {
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var navLinks = document.querySelectorAll('.topbar nav a[data-go]');
+  var dots = document.querySelectorAll('.dots button');
+
+  /* ---- go to slide ---- */
+  function go(i) {
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    slides[i].scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+  document.querySelectorAll('[data-go]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      go(parseInt(el.getAttribute('data-go'), 10));
+    });
+  });
+
+  /* ---- active slide tracking ---- */
+  var current = 0;
+  function setActive(i) {
+    current = i;
+    navLinks.forEach(function (a, n) { a.classList.toggle('on', n === i); });
+    dots.forEach(function (d, n) { d.classList.toggle('on', n === i); });
+    history.replaceState(null, '', '#' + slides[i].id);
+  }
+  var slideObs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) {
+        var idx = slides.indexOf(en.target);
+        setActive(idx);
+        en.target.classList.add('in');
+        en.target.querySelectorAll('.reveal').forEach(function (r) { r.classList.add('in'); });
+        en.target.querySelectorAll('[data-count]').forEach(countUp);
+      }
+    });
+  }, { threshold: 0.55 });
+  slides.forEach(function (s) { slideObs.observe(s); });
+
+  /* ---- keyboard ---- */
+  document.addEventListener('keydown', function (e) {
+    if (e.target.closest && e.target.closest('input,textarea')) return;
+    if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(current + 1); }
+    if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(current - 1); }
+  });
+
+  /* ---- typing role ---- */
+  var typed = document.getElementById('typed');
+  var roles = ['Web Developer', 'C Programmer', 'Fast Learner', 'Problem Solver'];
+  if (typed && !reduce) {
+    var r = 0, c = 0, del = false;
+    (function tick() {
+      var word = roles[r];
+      typed.textContent = word.slice(0, c);
+      if (!del && c < word.length) { c++; return setTimeout(tick, 90); }
+      if (!del) { del = true; return setTimeout(tick, 1400); }
+      if (c > 0) { c--; return setTimeout(tick, 45); }
+      del = false; r = (r + 1) % roles.length; setTimeout(tick, 300);
+    })();
+  }
+
+  /* ---- counters ---- */
+  function countUp(el) {
+    if (el.dataset.done) return;
+    el.dataset.done = '1';
+    var end = parseInt(el.dataset.count, 10), n = 0;
+    if (reduce) { el.textContent = end; return; }
+    var t = setInterval(function () {
+      n++; el.textContent = n;
+      if (n >= end) clearInterval(t);
+    }, 260);
+  }
+
+  /* ---- spotlight on cards + cursor glow ---- */
+  var glow = document.querySelector('.cursor-glow');
+  document.addEventListener('pointermove', function (e) {
+    if (glow) { glow.style.opacity = 1; glow.style.transform = 'translate(' + (e.clientX - 210) + 'px,' + (e.clientY - 210) + 'px)'; }
+    var card = e.target.closest && e.target.closest('.card');
+    if (card) {
+      var b = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - b.left) + 'px');
+      card.style.setProperty('--my', (e.clientY - b.top) + 'px');
+    }
+  });
+
+  /* ---- 3D tilt on portrait ---- */
+  var tilt = document.querySelector('[data-tilt]');
+  if (tilt && !reduce && window.matchMedia('(hover:hover)').matches) {
+    tilt.addEventListener('pointermove', function (e) {
+      var b = tilt.getBoundingClientRect();
+      var x = (e.clientX - b.left) / b.width - 0.5;
+      var y = (e.clientY - b.top) / b.height - 0.5;
+      tilt.style.transform = 'perspective(900px) rotateY(' + (x * 14) + 'deg) rotateX(' + (-y * 14) + 'deg)';
+    });
+    tilt.addEventListener('pointerleave', function () { tilt.style.transform = ''; });
+  }
+
+  /* ---- orb parallax on slide change ---- */
+  var orbs = document.querySelectorAll('.orb');
+  var seen = setActive;
+  setActive = function (i) { // eslint-disable-line no-func-assign
+    seen(i);
+    orbs.forEach(function (o, n) {
+      o.style.transform = 'translate(' + (i * (n % 2 ? -6 : 6)) + 'vmax,' + (i * (n === 2 ? -4 : 4)) + 'vmax)';
+    });
+  };
+
+  var yr = document.getElementById('yr');
+  if (yr) yr.textContent = new Date().getFullYear();
+
+  /* open the slide named in the URL hash */
+  var h = location.hash.replace('#', '');
+  var start = slides.findIndex(function (s) { return s.id === h; });
+  if (start > 0) setTimeout(function () { go(start); }, 60);
+})();
